@@ -4,10 +4,11 @@
 TagManager:
   serializedVersion: 2
   tags:
-  - Bullet
-  - floor
-  - body
-  - head
+  - Floor
+  - Body
+  - Head
+  - Thorn
+  - Energy
   layers:
   - Default
   - TransparentFX

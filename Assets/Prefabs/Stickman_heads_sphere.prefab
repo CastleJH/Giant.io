@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 8378715666723827066}
   - component: {fileID: 3766031478287111016}
   - component: {fileID: 5897497023465865271}
-  m_Layer: 7
+  m_Layer: 0
   m_Name: Land Point
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -94,9 +94,9 @@ GameObject:
   - component: {fileID: 8264156147435116773}
   - component: {fileID: 2429330183405893006}
   - component: {fileID: 1855177949908892872}
-  m_Layer: 6
+  m_Layer: 0
   m_Name: Head Collider
-  m_TagString: head
+  m_TagString: Head
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -526,9 +526,9 @@ GameObject:
   - component: {fileID: 6363488312303358140}
   - component: {fileID: 4559710749217051874}
   - component: {fileID: 7578693228233961511}
-  m_Layer: 7
+  m_Layer: 0
   m_Name: Stickman_heads_sphere
-  m_TagString: body
+  m_TagString: Body
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -614,8 +614,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   landPoint: {fileID: 54941927306203452}
-  camOffset: {x: 0, y: 4, z: -5}
-  isPlayer: 0
+  head: {fileID: 0}
+  feet: {fileID: 0}
+  isMine: 0
+  score: 0
 --- !u!1 &8592876449704463764
 GameObject:
   m_ObjectHideFlags: 0
