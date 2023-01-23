@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Timeline;
+using Photon.Pun;
+using Photon.Realtime;
+using static UnityEditor.PlayerSettings;
 
 public class Player : MonoBehaviour
 {
@@ -10,16 +13,19 @@ public class Player : MonoBehaviour
     Animator anim;
     Vector3 moveVec;
 
+    public PhotonView pv;
     public GameObject landPoint;
     public GameObject head, feet;
-    public bool isMine;
     public int score;
     float baseSpeed;
     float jumpPower;
     float speed = 20.0f;
+    float movedDist;
     bool isFalling;
 
     float boostTime;
+
+    public List<Energy> energyList;
 
     void Awake()
     {
@@ -29,22 +35,22 @@ public class Player : MonoBehaviour
         score = 50;
         isFalling = false;
         ChangeSize();
+
+        energyList = new List<Energy>();
     }
 
     void Update()
     {
-        if (isMine)
+        if (pv.IsMine)
         {
             Move();
-
+            GenerateEnergyNearThis();
             if (anim.GetBool("IsJump"))
             {
                 landPoint.transform.position = new Vector3(transform.position.x, 0, transform.position.z);
                 if (rigid.velocity.y < 0) isFalling = true;
             }
             Camera.main.transform.position = new Vector3(transform.position.x, GameManager.instance.camOffset.y + transform.position.y, GameManager.instance.camOffset.z + transform.position.z);
-            //Camera.main.gameObject.transform.rotation = Quaternion.Euler(15, 0, Mathf.Atan2(moveVec.z, moveVec.x) * Mathf.Rad2Deg);
-            //Camera.main
         }
     }
 
@@ -60,6 +66,53 @@ public class Player : MonoBehaviour
         transform.LookAt(transform.position + moveVec);
         transform.position += moveVec * speed * Time.deltaTime;
         anim.SetBool("IsRun", moveVec != Vector3.zero);
+    }
+
+    void GenerateEnergyNearThis()
+    {
+        if (moveVec != Vector3.zero) movedDist += speed * Time.deltaTime;
+        if (movedDist > 10)
+        {
+            for (int i = 0; i < 5; i++)
+            {
+                Vector3 pos = new Vector3(
+                Random.Range(10.0f, 30.0f) * (Random.Range(0, 2) == 0 ? -1 : 1) + transform.position.x,
+                1,
+                Random.Range(10.0f, 30.0f) * (Random.Range(0, 2) == 0 ? -1 : 1) + transform.position.z
+                );
+                pv.RPC("RPCGenerateEnergy", RpcTarget.AllBuffered, pos);
+            }
+            movedDist = 0;
+        }
+    }
+
+    //에너지 생성
+    [PunRPC]
+    void RPCGenerateEnergy(Vector3 pos)
+    {
+        Energy newEnergy = Instantiate(GameManager.instance.energyPrefab, pos, Quaternion.identity).GetComponent<Energy>();
+        newEnergy.InitializeEnergy(3, this);
+        energyList.Add(newEnergy);
+    }
+
+    public void RemoveEnergy(Energy energy)
+    {
+        pv.RPC("RPCRemoveEnergy", RpcTarget.AllBuffered, energy);
+    }
+
+    [PunRPC]
+    void RPCRemoveEnergy(Energy energy)
+    {
+        for (int i = energyList.Count - 1; i >= 0; i--)
+        {
+            if (energyList[i] == energy)
+            {
+                GameObject removeObj = energyList[i].gameObject;
+                energyList.RemoveAt(i);
+                Destroy(removeObj);
+                break;
+            }
+        }
     }
 
     public void Jump()
@@ -83,10 +136,6 @@ public class Player : MonoBehaviour
 
     void ChangeSize()
     {
-        /*(1~10 -> 50~1000)
-         스코어 값을 50~1000사이로 clamp하고, 이를 1~10사이로 조정
-         */
-
         float clampedScore = (Mathf.Clamp(score, 50, 1000) - 50.0f) / 950.0f;
         float size = Mathf.Lerp(1.0f, 10.0f, clampedScore);
 
@@ -94,10 +143,15 @@ public class Player : MonoBehaviour
         baseSpeed = Mathf.Lerp(8.0f, 6.0f, clampedScore);
         jumpPower = Mathf.Lerp(7.0f, 35.0f, clampedScore);
 
-        if (isMine) 
+        if (pv.IsMine) 
         {
             GameManager.instance.camOffset = new Vector3(0, size * 4.0f, size * -8.0f);
         }
+    }
+
+    public void Die()
+    {
+        Destroy(gameObject);
     }
 
     void OnCollisionEnter(Collision collision)
@@ -122,12 +176,13 @@ public class Player : MonoBehaviour
         if (other.gameObject.tag == "Head" && isFalling) //하강 도중 상대 머리를 밟았다.
         {
             Debug.Log("Attack!");
-            Destroy(other.gameObject.transform.parent.gameObject);
+            other.gameObject.transform.parent.gameObject.GetComponent<Player>().Die();
         }
         else if (other.gameObject.tag == "Energy")
         {
-            score += other.GetComponent<Energy>().power;
-            Destroy(other.gameObject);
+            Energy energy = other.GetComponent<Energy>();
+            score += energy.power;
+            energy.RemoveThisFromScene();
             ChangeSize();
         }
     }
