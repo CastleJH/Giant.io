@@ -1,31 +1,34 @@
 using System.Collections;
 using System.Collections.Generic;
-using Unity.VisualScripting;
 using UnityEngine;
-using UnityEngine.Timeline;
 using Photon.Pun;
 using Photon.Realtime;
-using static UnityEditor.PlayerSettings;
+using System.Runtime.CompilerServices;
+using UnityEngine.EventSystems;
 
 public class Player : MonoBehaviour
 {
+    public PhotonView pv;
+    public GameObject landPointGreen;
+    public GameObject landPointRed;
+
     Rigidbody rigid;
     Animator anim;
-    Vector3 moveVec;
 
-    public PhotonView pv;
-    public GameObject landPoint;
-    public GameObject head, feet;
     public int score;
     float baseSpeed;
     float jumpPower;
     float speed = 20.0f;
+    Vector3 moveVec;
+    float prevInputX, curInputX;
+    float lookDir;
     float movedDist;
     bool isFalling;
 
     float boostTime;
 
     public List<Energy> energyList;
+    int energyGenID;
 
     void Awake()
     {
@@ -37,6 +40,9 @@ public class Player : MonoBehaviour
         ChangeSize();
 
         energyList = new List<Energy>();
+        energyGenID = 0;
+
+        lookDir = 90.0f;
     }
 
     void Update()
@@ -45,13 +51,11 @@ public class Player : MonoBehaviour
         {
             Move();
             GenerateEnergyNearThis();
-            if (anim.GetBool("IsJump"))
-            {
-                landPoint.transform.position = new Vector3(transform.position.x, 0, transform.position.z);
-                if (rigid.velocity.y < 0) isFalling = true;
-            }
-            Camera.main.transform.position = new Vector3(transform.position.x, GameManager.instance.camOffset.y + transform.position.y, GameManager.instance.camOffset.z + transform.position.z);
+            if (anim.GetBool("IsJump") && rigid.velocity.y < 0) isFalling = true;
+
+            landPointGreen.transform.position = new Vector3(transform.position.x, 0, transform.position.z);
         }
+        else landPointRed.transform.position = new Vector3(transform.position.x, 0, transform.position.z);
     }
 
     void Move()
@@ -62,25 +66,46 @@ public class Player : MonoBehaviour
             boostTime += Time.deltaTime;
         }
         else speed = baseSpeed;
-        moveVec = new Vector3(GameManager.instance.joystick.Horizontal, 0, GameManager.instance.joystick.Vertical).normalized;
-        transform.LookAt(transform.position + moveVec);
-        transform.position += moveVec * speed * Time.deltaTime;
-        anim.SetBool("IsRun", moveVec != Vector3.zero);
+
+        if (Input.touchCount > 0)
+        {
+            if (Input.touches[0].phase == TouchPhase.Began)
+            {
+                prevInputX = Input.touches[0].position.x;
+                anim.SetBool("IsRun", true);
+            }
+            else if (Input.touches[0].phase == TouchPhase.Ended || Input.touches[0].phase == TouchPhase.Canceled)
+            {
+                anim.SetBool("IsRun", false);
+            }
+            else
+            {
+                curInputX = Input.touches[0].position.x;
+                //추후 감도 조절 기능을 넣는것이 좋겠다.
+                lookDir += (prevInputX - curInputX) / Screen.width * 360.0f * Time.deltaTime;
+                moveVec = new Vector3(Mathf.Cos(lookDir), 0, Mathf.Sin(lookDir));
+                transform.LookAt(transform.position + moveVec);
+                transform.position += moveVec * speed * Time.deltaTime;
+                prevInputX = curInputX;
+            }
+        }
     }
 
     void GenerateEnergyNearThis()
     {
         if (moveVec != Vector3.zero) movedDist += speed * Time.deltaTime;
-        if (movedDist > 10)
+        if (movedDist > 10 && energyList.Count < 96)
         {
             for (int i = 0; i < 5; i++)
             {
+                float deg = Random.Range(0.0f, 360.0f);
                 Vector3 pos = new Vector3(
-                Random.Range(10.0f, 30.0f) * (Random.Range(0, 2) == 0 ? -1 : 1) + transform.position.x,
-                1,
-                Random.Range(10.0f, 30.0f) * (Random.Range(0, 2) == 0 ? -1 : 1) + transform.position.z
-                );
-                pv.RPC("RPCGenerateEnergy", RpcTarget.AllBuffered, pos);
+                    Mathf.Cos(deg),
+                    0,
+                    Mathf.Sin(deg)) * Random.Range(80.0f, 120.0f);
+                pos = new Vector3(pos.x + transform.position.x, 1, pos.z + transform.position.z);
+                pv.RPC("RPCGenerateEnergy", RpcTarget.AllBuffered, pos, energyGenID);
+                energyGenID = (energyGenID + 1) % 10000;
             }
             movedDist = 0;
         }
@@ -88,24 +113,24 @@ public class Player : MonoBehaviour
 
     //에너지 생성
     [PunRPC]
-    void RPCGenerateEnergy(Vector3 pos)
+    void RPCGenerateEnergy(Vector3 pos, int id)
     {
         Energy newEnergy = Instantiate(GameManager.instance.energyPrefab, pos, Quaternion.identity).GetComponent<Energy>();
-        newEnergy.InitializeEnergy(3, this);
+        newEnergy.InitializeEnergy(id, 3, this);
         energyList.Add(newEnergy);
     }
 
     public void RemoveEnergy(Energy energy)
     {
-        pv.RPC("RPCRemoveEnergy", RpcTarget.AllBuffered, energy);
+        pv.RPC("RPCRemoveEnergy", RpcTarget.AllBuffered, energy.id);
     }
 
     [PunRPC]
-    void RPCRemoveEnergy(Energy energy)
+    void RPCRemoveEnergy(int id)
     {
         for (int i = energyList.Count - 1; i >= 0; i--)
         {
-            if (energyList[i] == energy)
+            if (energyList[i].id == id)
             {
                 GameObject removeObj = energyList[i].gameObject;
                 energyList.RemoveAt(i);
@@ -121,7 +146,14 @@ public class Player : MonoBehaviour
         rigid.AddForce(Vector3.up * jumpPower, ForceMode.Impulse);
         anim.SetBool("IsJump", true);
         anim.SetTrigger("Jump");
-        landPoint.SetActive(true);
+        pv.RPC("RPCTurnOnLandPoint", RpcTarget.AllBuffered);
+    }
+
+    [PunRPC]
+    void RPCTurnOnLandPoint()
+    {
+        if (pv.IsMine) landPointGreen.SetActive(true);
+        else landPointRed.SetActive(true);
     }
 
     public void Boost()
@@ -145,24 +177,28 @@ public class Player : MonoBehaviour
 
         if (pv.IsMine) 
         {
-            GameManager.instance.camOffset = new Vector3(0, size * 4.0f, size * -8.0f);
+            //GameManager.instance.camDist = new Vector3(size * 8.0f, size * 4.0f, size * 8.0f);
         }
     }
 
-    public void Die()
+    [PunRPC]
+    void Die()
     {
-        Destroy(gameObject);
+        gameObject.SetActive(false);
     }
 
     void OnCollisionEnter(Collision collision)
     {
-        Debug.Log("coll : " + collision.gameObject.tag);
         if (collision.gameObject.tag == "Floor") //바닥에 닿았다.
         {
-            anim.SetBool("IsJump", false);
-            isFalling = false;
-            landPoint.SetActive(false);
-            GameManager.instance.jumpCool = 3;
+            if (pv.IsMine)
+            {
+                anim.SetBool("IsJump", false);
+                isFalling = false;
+                GameManager.instance.jumpCool = 3;
+            }
+            landPointGreen.SetActive(false);
+            landPointRed.SetActive(false);
         }
         else if (collision.gameObject.tag == "Thorn")
         {
@@ -172,18 +208,20 @@ public class Player : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        Debug.Log("trig : " + other.gameObject.tag + " y : " + rigid.velocity.y.ToString());
-        if (other.gameObject.tag == "Head" && isFalling) //하강 도중 상대 머리를 밟았다.
+        if (pv.IsMine)
         {
-            Debug.Log("Attack!");
-            other.gameObject.transform.parent.gameObject.GetComponent<Player>().Die();
-        }
-        else if (other.gameObject.tag == "Energy")
-        {
-            Energy energy = other.GetComponent<Energy>();
-            score += energy.power;
-            energy.RemoveThisFromScene();
-            ChangeSize();
+            if (other.gameObject.tag == "Head" && isFalling) //하강 도중 상대 머리를 밟았다.
+            {
+                Debug.Log("Attack!");
+                other.gameObject.transform.parent.gameObject.GetComponent<Player>().Die();
+            }
+            else if (other.gameObject.tag == "Energy")
+            {
+                Energy energy = other.GetComponent<Energy>();
+                score += energy.power;
+                energy.RemoveThisFromScene();
+                ChangeSize();
+            }
         }
     }
 }

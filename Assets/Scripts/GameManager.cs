@@ -7,8 +7,8 @@ using Photon.Realtime;
 public class GameManager : MonoBehaviour
 {
     public static GameManager instance;
+    //public Joystick joystickCam;
     public GameObject energyPrefab;
-    public Joystick joystick;
 
     Player myPlayer;
 
@@ -17,13 +17,13 @@ public class GameManager : MonoBehaviour
     float boostCool;
     float kickCool;
 
-    //기타 에너지/카메라 관련 변수들
+    //카메라 관련 변수
     [HideInInspector] public Vector3 camOffset;
 
     void Awake()
     {
         //이건 나중에 지울 것!
-        Screen.SetResolution(900, 500, false);
+        //Screen.SetResolution(900, 500, false);
 
         if (instance == null) instance = this;
         camOffset = new Vector3(0, 4, -8);
@@ -35,10 +35,15 @@ public class GameManager : MonoBehaviour
         CoolTimeDown();
     }
 
-    //나의 플레이어를 생성한다.
+    //내 플레이어를 생성한다.
     public void SpawnMyPlayer()
     {
-        myPlayer = PhotonNetwork.Instantiate("Player", new Vector3(0, 2, 0), Quaternion.identity).GetComponent<Player>();
+        if (myPlayer == null)
+        {
+            myPlayer = PhotonNetwork.Instantiate("Player", new Vector3(0, 2, 0), Quaternion.identity).GetComponent<Player>();
+            Camera.main.transform.parent = myPlayer.transform;
+            Camera.main.transform.localPosition = camOffset;
+        }
         jumpCool = 0;
         boostCool = 0;
         kickCool = 0;
