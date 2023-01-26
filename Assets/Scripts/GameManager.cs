@@ -9,12 +9,12 @@ public class GameManager : MonoBehaviour
     public static GameManager instance;
     //public Joystick joystickCam;
     public GameObject energyPrefab;
+    public GameObject mobileUI;
 
     Player myPlayer;
 
     //아래는 내 플레이어의 스킬 관련 변수들
     [HideInInspector] public float jumpCool;
-    float boostCool;
     float kickCool;
 
     //카메라 관련 변수
@@ -24,9 +24,10 @@ public class GameManager : MonoBehaviour
     {
         //이건 나중에 지울 것!
         //Screen.SetResolution(900, 500, false);
-
         if (instance == null) instance = this;
         camOffset = new Vector3(0, 4, -8);
+
+        if (!Application.isMobilePlatform) mobileUI.SetActive(false);
     }
 
     void Update()
@@ -45,7 +46,6 @@ public class GameManager : MonoBehaviour
             Camera.main.transform.localPosition = camOffset;
         }
         jumpCool = 0;
-        boostCool = 0;
         kickCool = 0;
     }
 
@@ -59,13 +59,9 @@ public class GameManager : MonoBehaviour
     }
 
     //부스트 버튼 눌렸을 때
-    public void ButtonBoost()
+    public void ButtonBoost(bool isTrue)
     {
-        if (boostCool <= 0)
-        {
-            myPlayer.Boost();
-            boostCool = 30;
-        }
+        myPlayer.Boost(isTrue);
     }
 
     //발차기 버튼 눌렸을 때
@@ -82,7 +78,6 @@ public class GameManager : MonoBehaviour
     void CoolTimeDown()
     {
         if (jumpCool > 0) jumpCool -= Time.deltaTime;
-        if (boostCool > 0) boostCool -= Time.deltaTime;
         if (kickCool > 0) kickCool -= Time.deltaTime;
     }
 /*

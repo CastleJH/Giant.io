@@ -24,8 +24,7 @@ public class Player : MonoBehaviour
     float lookDir;
     float movedDist;
     bool isFalling;
-
-    float boostTime;
+    bool isBoost;
 
     public List<Energy> energyList;
     int energyGenID;
@@ -34,7 +33,6 @@ public class Player : MonoBehaviour
     {
         rigid = GetComponent<Rigidbody>();
         anim = GetComponent<Animator>();
-        boostTime = 99;
         score = 50;
         isFalling = false;
         ChangeSize();
@@ -60,13 +58,15 @@ public class Player : MonoBehaviour
 
     void Move()
     {
-        if (boostTime < 5)
-        {
-            speed = baseSpeed * 2.0f;
-            boostTime += Time.deltaTime;
-        }
+        if (isBoost) speed = baseSpeed * 2.0f;
         else speed = baseSpeed;
 
+        if (Application.isMobilePlatform) GetMobileInput();
+        else GetPCInput();
+    }
+
+    void GetMobileInput()
+    {
         if (Input.touchCount > 0)
         {
             if (Input.touches[0].phase == TouchPhase.Began)
@@ -89,6 +89,33 @@ public class Player : MonoBehaviour
                 prevInputX = curInputX;
             }
         }
+    }
+
+    void GetPCInput()
+    {
+        if (Input.GetMouseButtonDown(0))
+        {
+            prevInputX = Input.mousePosition.x;
+            anim.SetBool("IsRun", true);
+        }
+        else if (Input.GetMouseButton(0))
+        {
+            curInputX = Input.mousePosition.x;
+            //추후 감도 조절 기능을 넣는것이 좋겠다.
+            lookDir += (prevInputX - curInputX) / Screen.width * 1080.0f * Time.deltaTime;
+            moveVec = new Vector3(Mathf.Cos(lookDir), 0, Mathf.Sin(lookDir));
+            transform.LookAt(transform.position + moveVec);
+            transform.position += moveVec * speed * Time.deltaTime;
+            prevInputX = curInputX;
+        }
+        else if (Input.GetMouseButtonUp(0))
+        {
+            anim.SetBool("IsRun", false);
+        }
+        if (Input.GetKeyUp(KeyCode.Q)) GameManager.instance.ButtonJump();
+        else if (Input.GetKeyUp(KeyCode.W)) GameManager.instance.ButtonKick();
+        else if (Input.GetKeyDown(KeyCode.E)) GameManager.instance.ButtonBoost(true);
+        else if (Input.GetKeyUp(KeyCode.E)) GameManager.instance.ButtonBoost(false);
     }
 
     void GenerateEnergyNearThis()
@@ -156,9 +183,9 @@ public class Player : MonoBehaviour
         else landPointRed.SetActive(true);
     }
 
-    public void Boost()
+    public void Boost(bool isTrue)
     {
-        boostTime = 0;
+        isBoost = isTrue;
     }
 
     public void Kick()
