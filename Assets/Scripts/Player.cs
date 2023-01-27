@@ -78,21 +78,24 @@ public class Player : MonoBehaviour
 
     void GetMobileInput()
     {
-        if (Input.touchCount == 1)
+        if (Input.touchCount > 0)
         {
-            if (Input.touches[0].phase == TouchPhase.Began)
+            int moveFinger = 0;
+            if (Input.touchCount > 1 && Input.touches[moveFinger].position.x > Input.touches[1].position.x) moveFinger = 1;
+            if (Input.touches[moveFinger].phase == TouchPhase.Began)
             {
-                prevInputX = Input.touches[0].position.x;
-                anim.SetBool("IsRun", true);
+                prevInputX = Input.touches[moveFinger].position.x;
+                if (prevInputX < Screen.width / 2) anim.SetBool("IsRun", true);
             }
-            else if (Input.touches[0].phase == TouchPhase.Ended || Input.touches[0].phase == TouchPhase.Canceled)
+            else if (Input.touches[moveFinger].phase == TouchPhase.Ended || Input.touches[moveFinger].phase == TouchPhase.Canceled)
             {
                 anim.SetBool("IsRun", false);
                 moveVec = Vector3.zero;
+                if (Input.touchCount != 1) prevInputX = Input.touches[(moveFinger + 1) % 2].position.x;
             }
             else
             {
-                curInputX = Input.mousePosition.x;
+                curInputX = Input.touches[moveFinger].position.x;
 
                 //추후 감도 조절 기능을 넣는것이 좋겠다.
                 lookDir -= (prevInputX - curInputX) / Screen.width * 360.0f;
@@ -100,37 +103,13 @@ public class Player : MonoBehaviour
                 else if (lookDir > 180) lookDir -= 360;
 
                 transform.rotation = Quaternion.Euler(0, lookDir, 0);
-                moveVec = transform.rotation * Vector3.forward;
-                transform.position += moveVec * speed * Time.deltaTime;
 
-                prevInputX = curInputX;
-            }
-        }
-        else if (Input.touchCount == 2 && !isBoost) //방향만 변경
-        {
-            if (Input.touches[1].phase == TouchPhase.Began)
-            {
-                prevInputX = Input.touches[1].position.x;
-                anim.SetBool("IsRun", true);
-            }
-            else if (Input.touches[1].phase == TouchPhase.Ended || Input.touches[1].phase == TouchPhase.Canceled)
-            {
-                anim.SetBool("IsRun", false);
-                moveVec = Vector3.zero;
-            }
-            else
-            {
-                curInputX = Input.mousePosition.x;
-
-                //추후 감도 조절 기능을 넣는것이 좋겠다.
-                lookDir -= (prevInputX - curInputX) / Screen.width * 360.0f;
-                if (lookDir < -180) lookDir += 360;
-                else if (lookDir > 180) lookDir -= 360;
-
-                transform.rotation = Quaternion.Euler(0, lookDir, 0);
-                moveVec = transform.rotation * Vector3.forward;
-                transform.position += moveVec * speed * Time.deltaTime;
-
+                //방향만 결정하지 않고 이동까지 하는 경우
+                if (anim.GetBool("IsRun"))
+                {
+                    moveVec = transform.rotation * Vector3.forward;
+                    transform.position += moveVec * speed * Time.deltaTime;
+                }
                 prevInputX = curInputX;
             }
         }
@@ -192,6 +171,7 @@ public class Player : MonoBehaviour
     {
         Camera.main.transform.rotation = Quaternion.Euler(15.0f, lookDir, 0.0f);
         Camera.main.transform.position = transform.position + Camera.main.transform.rotation * GameManager.instance.camOffset;
+        Camera.main.transform.position = new Vector3(Camera.main.transform.position.x, GameManager.instance.camOffset.y, Camera.main.transform.position.z);
     }
 
     void SpawnEnergyNearThis()
@@ -280,7 +260,7 @@ public class Player : MonoBehaviour
         baseSpeed = Mathf.Lerp(8.0f, 6.0f, clampedScore);
         jumpPower = Mathf.Lerp(7.0f, 35.0f, clampedScore);
 
-        GameManager.instance.camOffset = new Vector3(0, size * 1.5f, size * -6.0f);
+        GameManager.instance.camOffset = new Vector3(0, size * 3.0f, size * -6.0f);
     }
 
     [PunRPC]
