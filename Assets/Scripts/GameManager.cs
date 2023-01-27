@@ -25,8 +25,6 @@ public class GameManager : MonoBehaviour
         //이건 나중에 지울 것!
         //Screen.SetResolution(900, 500, false);
         if (instance == null) instance = this;
-        camOffset = new Vector3(0, 4, -8);
-
         if (!Application.isMobilePlatform) mobileUI.SetActive(false);
     }
 
@@ -39,17 +37,12 @@ public class GameManager : MonoBehaviour
     //내 플레이어를 생성한다.
     public void SpawnMyPlayer()
     {
-        if (myPlayer == null)
-        {
-            myPlayer = PhotonNetwork.Instantiate("Player", new Vector3(0, 2, 0), Quaternion.identity).GetComponent<Player>();
-            Camera.main.transform.parent = myPlayer.transform;
-            Camera.main.transform.localPosition = camOffset;
-        }
+        if (myPlayer == null) myPlayer = PhotonNetwork.Instantiate("Player", new Vector3(0, 2, 0), Quaternion.identity).GetComponent<Player>();
         jumpCool = 0;
         kickCool = 0;
     }
 
-    //점프버튼 눌렸을 때
+    //점프버튼 눌렸을/뗐을 때
     public void ButtonJump()
     {
         if (jumpCool <= 0)

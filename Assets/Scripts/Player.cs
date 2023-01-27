@@ -16,16 +16,23 @@ public class Player : MonoBehaviour
     Animator anim;
 
     public int score;
+
+    //이동 관련 변수
     float baseSpeed;
-    float jumpPower;
     float speed = 20.0f;
+    float lookDir;
     Vector3 moveVec;
     float prevInputX, curInputX;
-    float lookDir;
     float movedDist;
+
+    //점프 관련 변수
+    float jumpPower;
     bool isFalling;
+
+    //부스트 관련 변수
     bool isBoost;
 
+    //제어중인 에너지
     public List<Energy> energyList;
     int energyGenID;
 
@@ -33,14 +40,17 @@ public class Player : MonoBehaviour
     {
         rigid = GetComponent<Rigidbody>();
         anim = GetComponent<Animator>();
-        score = 50;
-        isFalling = false;
-        ChangeSize();
 
         energyList = new List<Energy>();
         energyGenID = 0;
+        isFalling = false;
 
-        lookDir = 90.0f;
+        if (pv.IsMine)
+        {
+            ChangeScore(50);
+            MoveCamera();
+        }
+
     }
 
     void Update()
@@ -48,7 +58,8 @@ public class Player : MonoBehaviour
         if (pv.IsMine)
         {
             Move();
-            GenerateEnergyNearThis();
+            MoveCamera();
+            SpawnEnergyNearThis();
             if (anim.GetBool("IsJump") && rigid.velocity.y < 0) isFalling = true;
 
             landPointGreen.transform.position = new Vector3(transform.position.x, 0, transform.position.z);
@@ -67,7 +78,7 @@ public class Player : MonoBehaviour
 
     void GetMobileInput()
     {
-        if (Input.touchCount > 0)
+        if (Input.touchCount == 1)
         {
             if (Input.touches[0].phase == TouchPhase.Began)
             {
@@ -77,15 +88,49 @@ public class Player : MonoBehaviour
             else if (Input.touches[0].phase == TouchPhase.Ended || Input.touches[0].phase == TouchPhase.Canceled)
             {
                 anim.SetBool("IsRun", false);
+                moveVec = Vector3.zero;
             }
             else
             {
-                curInputX = Input.touches[0].position.x;
+                curInputX = Input.mousePosition.x;
+
                 //추후 감도 조절 기능을 넣는것이 좋겠다.
-                lookDir += (prevInputX - curInputX) / Screen.width * 360.0f * Time.deltaTime;
-                moveVec = new Vector3(Mathf.Cos(lookDir), 0, Mathf.Sin(lookDir));
-                transform.LookAt(transform.position + moveVec);
+                lookDir -= (prevInputX - curInputX) / Screen.width * 360.0f;
+                if (lookDir < -180) lookDir += 360;
+                else if (lookDir > 180) lookDir -= 360;
+
+                transform.rotation = Quaternion.Euler(0, lookDir, 0);
+                moveVec = transform.rotation * Vector3.forward;
                 transform.position += moveVec * speed * Time.deltaTime;
+
+                prevInputX = curInputX;
+            }
+        }
+        else if (Input.touchCount == 2 && !isBoost) //방향만 변경
+        {
+            if (Input.touches[1].phase == TouchPhase.Began)
+            {
+                prevInputX = Input.touches[1].position.x;
+                anim.SetBool("IsRun", true);
+            }
+            else if (Input.touches[1].phase == TouchPhase.Ended || Input.touches[1].phase == TouchPhase.Canceled)
+            {
+                anim.SetBool("IsRun", false);
+                moveVec = Vector3.zero;
+            }
+            else
+            {
+                curInputX = Input.mousePosition.x;
+
+                //추후 감도 조절 기능을 넣는것이 좋겠다.
+                lookDir -= (prevInputX - curInputX) / Screen.width * 360.0f;
+                if (lookDir < -180) lookDir += 360;
+                else if (lookDir > 180) lookDir -= 360;
+
+                transform.rotation = Quaternion.Euler(0, lookDir, 0);
+                moveVec = transform.rotation * Vector3.forward;
+                transform.position += moveVec * speed * Time.deltaTime;
+
                 prevInputX = curInputX;
             }
         }
@@ -93,6 +138,7 @@ public class Player : MonoBehaviour
 
     void GetPCInput()
     {
+        //이동 명령
         if (Input.GetMouseButtonDown(0))
         {
             prevInputX = Input.mousePosition.x;
@@ -101,24 +147,54 @@ public class Player : MonoBehaviour
         else if (Input.GetMouseButton(0))
         {
             curInputX = Input.mousePosition.x;
+            
             //추후 감도 조절 기능을 넣는것이 좋겠다.
-            lookDir += (prevInputX - curInputX) / Screen.width * 1080.0f * Time.deltaTime;
-            moveVec = new Vector3(Mathf.Cos(lookDir), 0, Mathf.Sin(lookDir));
-            transform.LookAt(transform.position + moveVec);
+            lookDir -= (prevInputX - curInputX) / Screen.width * 1080.0f;
+            if (lookDir < -180) lookDir += 360;
+            else if (lookDir > 180) lookDir -= 360;
+
+            transform.rotation = Quaternion.Euler(0, lookDir, 0);
+            moveVec = transform.rotation * Vector3.forward;
             transform.position += moveVec * speed * Time.deltaTime;
+
             prevInputX = curInputX;
         }
         else if (Input.GetMouseButtonUp(0))
         {
             anim.SetBool("IsRun", false);
+            moveVec = Vector3.zero;
         }
+        //방향만 변경
+        else if (Input.GetMouseButtonDown(1)) prevInputX = Input.mousePosition.x;
+        else if (Input.GetMouseButton(1))
+        {
+            curInputX = Input.mousePosition.x;
+
+            //추후 감도 조절 기능을 넣는것이 좋겠다.
+            lookDir -= (prevInputX - curInputX) / Screen.width * 1080.0f;
+            if (lookDir < -180) lookDir += 360;
+            else if (lookDir > 180) lookDir -= 360;
+
+            transform.rotation = Quaternion.Euler(0, lookDir, 0);
+
+            prevInputX = curInputX;
+        }
+        else if (Input.GetMouseButtonUp(1)) moveVec = Vector3.zero;
+
+        //스킬 키
         if (Input.GetKeyUp(KeyCode.Q)) GameManager.instance.ButtonJump();
         else if (Input.GetKeyUp(KeyCode.W)) GameManager.instance.ButtonKick();
         else if (Input.GetKeyDown(KeyCode.E)) GameManager.instance.ButtonBoost(true);
         else if (Input.GetKeyUp(KeyCode.E)) GameManager.instance.ButtonBoost(false);
     }
 
-    void GenerateEnergyNearThis()
+    void MoveCamera()
+    {
+        Camera.main.transform.rotation = Quaternion.Euler(15.0f, lookDir, 0.0f);
+        Camera.main.transform.position = transform.position + Camera.main.transform.rotation * GameManager.instance.camOffset;
+    }
+
+    void SpawnEnergyNearThis()
     {
         if (moveVec != Vector3.zero) movedDist += speed * Time.deltaTime;
         if (movedDist > 10 && energyList.Count < 96)
@@ -131,7 +207,7 @@ public class Player : MonoBehaviour
                     0,
                     Mathf.Sin(deg)) * Random.Range(80.0f, 120.0f);
                 pos = new Vector3(pos.x + transform.position.x, 1, pos.z + transform.position.z);
-                pv.RPC("RPCGenerateEnergy", RpcTarget.AllBuffered, pos, energyGenID);
+                pv.RPC("RPCSpawnEnergy", RpcTarget.AllBuffered, pos, energyGenID, 3);
                 energyGenID = (energyGenID + 1) % 10000;
             }
             movedDist = 0;
@@ -140,10 +216,10 @@ public class Player : MonoBehaviour
 
     //에너지 생성
     [PunRPC]
-    void RPCGenerateEnergy(Vector3 pos, int id)
+    void RPCSpawnEnergy(Vector3 pos, int id, int power)
     {
         Energy newEnergy = Instantiate(GameManager.instance.energyPrefab, pos, Quaternion.identity).GetComponent<Energy>();
-        newEnergy.InitializeEnergy(id, 3, this);
+        newEnergy.InitializeEnergy(id, power, this);
         energyList.Add(newEnergy);
     }
 
@@ -193,8 +269,10 @@ public class Player : MonoBehaviour
 
     }
 
-    void ChangeSize()
+    //오직 pv.IsMine인 경우에만 불려야 함!!
+    public void ChangeScore(int _score)
     {
+        score = _score;
         float clampedScore = (Mathf.Clamp(score, 50, 1000) - 50.0f) / 950.0f;
         float size = Mathf.Lerp(1.0f, 10.0f, clampedScore);
 
@@ -202,10 +280,7 @@ public class Player : MonoBehaviour
         baseSpeed = Mathf.Lerp(8.0f, 6.0f, clampedScore);
         jumpPower = Mathf.Lerp(7.0f, 35.0f, clampedScore);
 
-        if (pv.IsMine) 
-        {
-            //GameManager.instance.camDist = new Vector3(size * 8.0f, size * 4.0f, size * 8.0f);
-        }
+        GameManager.instance.camOffset = new Vector3(0, size * 1.5f, size * -6.0f);
     }
 
     [PunRPC]
@@ -245,9 +320,8 @@ public class Player : MonoBehaviour
             else if (other.gameObject.tag == "Energy")
             {
                 Energy energy = other.GetComponent<Energy>();
-                score += energy.power;
+                ChangeScore(score + energy.power);
                 energy.RemoveThisFromScene();
-                ChangeSize();
             }
         }
     }
