@@ -3,14 +3,14 @@ using System.Collections.Generic;
 using UnityEngine;
 using Photon.Pun;
 using Photon.Realtime;
-using System.Runtime.CompilerServices;
-using UnityEngine.EventSystems;
+using Unity.VisualScripting;
 
-public class Player : MonoBehaviour
+public class Player : MonoBehaviourPunCallbacks, IPunObservable
 {
     public PhotonView pv;
     public GameObject landPointGreen;
     public GameObject landPointRed;
+    public TextMesh nicknameText;
 
     Rigidbody rigid;
     Animator anim;
@@ -42,6 +42,14 @@ public class Player : MonoBehaviour
         anim = GetComponent<Animator>();
 
         energyList = new List<Energy>();
+
+        nicknameText.text = pv.Owner.NickName;
+
+        InitializePlayer();
+    }
+
+    public void InitializePlayer()
+    {
         energyGenID = 0;
         isFalling = false;
 
@@ -50,7 +58,14 @@ public class Player : MonoBehaviour
             ChangeScore(50);
             MoveCamera();
         }
+    }
 
+    [PunRPC]
+    void Respawn(Vector3 spawnPos)
+    {
+        transform.position = spawnPos;
+        InitializePlayer();
+        gameObject.SetActive(true);
     }
 
     void Update()
@@ -65,6 +80,13 @@ public class Player : MonoBehaviour
             landPointGreen.transform.position = new Vector3(transform.position.x, 0, transform.position.z);
         }
         else landPointRed.transform.position = new Vector3(transform.position.x, 0, transform.position.z);
+        MoveNicknameText();
+    }
+
+    void MoveNicknameText()
+    {
+        nicknameText.transform.rotation = Camera.main.transform.rotation;
+        nicknameText.transform.localScale = Vector3.one * Vector3.Distance(Camera.main.transform.position, nicknameText.transform.position) / 80.0f;
     }
 
     void Move()
@@ -188,7 +210,7 @@ public class Player : MonoBehaviour
                     Mathf.Sin(deg)) * Random.Range(80.0f, 120.0f);
                 pos = new Vector3(pos.x + transform.position.x, 1, pos.z + transform.position.z);
                 pv.RPC("RPCSpawnEnergy", RpcTarget.AllBuffered, pos, energyGenID, 3);
-                energyGenID = (energyGenID + 1) % 10000;
+                GetNextEnergyGenID();
             }
             movedDist = 0;
         }
@@ -201,6 +223,27 @@ public class Player : MonoBehaviour
         Energy newEnergy = Instantiate(GameManager.instance.energyPrefab, pos, Quaternion.identity).GetComponent<Energy>();
         newEnergy.InitializeEnergy(id, power, this);
         energyList.Add(newEnergy);
+    }
+
+    void GetNextEnergyGenID()
+    {
+        bool sameID = false;
+        do
+        {
+            energyGenID = (energyGenID + 1) % 10000;
+            for (int i = energyList.Count - 1; i >= 0; i--)
+                if (energyList[i].id == energyGenID)
+                {
+                    sameID = true;
+                    break;
+                }
+        }
+        while (sameID);
+    }
+
+    [PunRPC]
+    void RPCTakeEnergyOwnership(string playerName, int targetId, int id)
+    {
     }
 
     public void RemoveEnergy(Energy energy)
@@ -263,10 +306,39 @@ public class Player : MonoBehaviour
         GameManager.instance.camOffset = new Vector3(0, size * 3.0f, size * -6.0f);
     }
 
+    void KillPlayer(Player targetPlayer)
+    {
+        int genCount = 0;
+        int leftScore = targetPlayer.score;
+        int power;
+        float dist = targetPlayer.transform.localScale.x;
+        float rad;
+        Vector3 pos = targetPlayer.transform.position;
+        while (leftScore > 0)
+        {
+            genCount++;
+            if (genCount == 10) power = leftScore;
+            else power = leftScore / 2;
+            leftScore -= power;
+
+            rad = Random.Range(0.0f, 359.9f * Mathf.Deg2Rad);
+            pos = new Vector3(targetPlayer.transform.position.x, 1, targetPlayer.transform.position.z) + new Vector3(Mathf.Cos(rad), 0, Mathf.Sin(rad)) * Random.Range(0.0f, dist);
+            pv.RPC("RPCSpawnEnergy", RpcTarget.AllBuffered, pos, energyGenID, power);
+            GetNextEnergyGenID();
+            Debug.Log(power);
+        }
+        targetPlayer.pv.RPC("RPCDie", RpcTarget.All, PhotonNetwork.LocalPlayer.NickName);
+    }
+
     [PunRPC]
-    void Die()
+    void RPCDie(string killerName)
     {
         gameObject.SetActive(false);
+        if (pv.IsMine)
+        {
+            GameManager.instance.killerNameText.text = string.Format("당신은 [{0}]에게 밟혀\n납작해졌습니다!", killerName);
+            GameManager.instance.deadPanel.SetActive(true);
+        }
     }
 
     void OnCollisionEnter(Collision collision)
@@ -295,7 +367,7 @@ public class Player : MonoBehaviour
             if (other.gameObject.tag == "Head" && isFalling) //하강 도중 상대 머리를 밟았다.
             {
                 Debug.Log("Attack!");
-                other.gameObject.transform.parent.gameObject.GetComponent<Player>().Die();
+                KillPlayer(other.gameObject.transform.parent.gameObject.GetComponent<Player>());
             }
             else if (other.gameObject.tag == "Energy")
             {
@@ -303,6 +375,18 @@ public class Player : MonoBehaviour
                 ChangeScore(score + energy.power);
                 energy.RemoveThisFromScene();
             }
+        }
+    }
+
+    public void OnPhotonSerializeView(PhotonStream stream, PhotonMessageInfo info)
+    {
+        if (stream.IsWriting)
+        {
+            stream.SendNext(score);
+        }
+        else
+        {
+            score = (int)stream.ReceiveNext();
         }
     }
 }

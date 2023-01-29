@@ -14,6 +14,9 @@ public class Energy : MonoBehaviour
         id = _id;
         power = _power;
         myOwner = _owner;
+
+        float size = Mathf.Lerp(0.5f, 3.0f, (Mathf.Clamp(_power, 1, 1000) - 1.0f) / 999.0f);
+        transform.localScale = Vector3.one * size;
     }
 
     void Update()

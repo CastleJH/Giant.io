@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using Photon.Pun;
 using Photon.Realtime;
+using UnityEngine.UI;
 
 public class GameManager : MonoBehaviour
 {
@@ -10,6 +11,9 @@ public class GameManager : MonoBehaviour
     //public Joystick joystickCam;
     public GameObject energyPrefab;
     public GameObject mobileUI;
+    public GameObject deadPanel;
+    public Text killerNameText;
+    public Text topScoreText;
 
     Player myPlayer;
 
@@ -37,9 +41,14 @@ public class GameManager : MonoBehaviour
     //내 플레이어를 생성한다.
     public void SpawnMyPlayer()
     {
-        if (myPlayer == null) myPlayer = PhotonNetwork.Instantiate("Player", new Vector3(0, 2, 0), Quaternion.identity).GetComponent<Player>();
+        Vector3 spawnPos = Vector3.zero;
+        if (myPlayer == null) myPlayer = PhotonNetwork.Instantiate("Player", spawnPos, Quaternion.identity).GetComponent<Player>();
+        else myPlayer.pv.RPC("Respawn", RpcTarget.All, spawnPos);
+
         jumpCool = 0;
         kickCool = 0;
+
+        deadPanel.SetActive(false);
     }
 
     //점프버튼 눌렸을/뗐을 때
@@ -72,6 +81,11 @@ public class GameManager : MonoBehaviour
     {
         if (jumpCool > 0) jumpCool -= Time.deltaTime;
         if (kickCool > 0) kickCool -= Time.deltaTime;
+    }
+
+    public void LeaveThisGame()
+    {
+
     }
 /*
     //에너지 오브젝트의 소유권을 조정한다.
