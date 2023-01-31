@@ -12,6 +12,8 @@ public class GameManager : MonoBehaviour
     public GameObject energyPrefab;
     public GameObject mobileUI;
     public GameObject deadPanel;
+    public GameObject settingPanel;
+    public Slider sensitivitySlider;
     public Text killerNameText;
     public Text topScoreText;
 
@@ -74,6 +76,11 @@ public class GameManager : MonoBehaviour
             myPlayer.Kick();
             kickCool = 5;
         }
+    }
+
+    public void ButtonOpenSettingPanel(bool isOpen)
+    {
+        settingPanel.SetActive(isOpen);
     }
 
     //ÄðÅ¸ÀÓ °¨¼Ò

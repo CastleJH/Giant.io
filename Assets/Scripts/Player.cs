@@ -94,6 +94,12 @@ public class Player : MonoBehaviourPunCallbacks, IPunObservable
         if (isBoost) speed = baseSpeed * 2.0f;
         else speed = baseSpeed;
 
+        if (GameManager.instance.settingPanel.activeSelf)
+        {
+            anim.SetBool("IsRun", false);
+            moveVec = Vector3.zero;
+            return;
+        }
         if (Application.isMobilePlatform) GetMobileInput();
         else GetPCInput();
     }
@@ -120,7 +126,7 @@ public class Player : MonoBehaviourPunCallbacks, IPunObservable
                 curInputX = Input.touches[moveFinger].position.x;
 
                 //추후 감도 조절 기능을 넣는것이 좋겠다.
-                lookDir -= (prevInputX - curInputX) / Screen.width * 360.0f;
+                lookDir -= (prevInputX - curInputX) / Screen.width * 72.0f * GameManager.instance.sensitivitySlider.value;
                 if (lookDir < -180) lookDir += 360;
                 else if (lookDir > 180) lookDir -= 360;
 
@@ -150,7 +156,7 @@ public class Player : MonoBehaviourPunCallbacks, IPunObservable
             curInputX = Input.mousePosition.x;
             
             //추후 감도 조절 기능을 넣는것이 좋겠다.
-            lookDir -= (prevInputX - curInputX) / Screen.width * 1080.0f;
+            lookDir -= (prevInputX - curInputX) / Screen.width * 216.0f * GameManager.instance.sensitivitySlider.value;
             if (lookDir < -180) lookDir += 360;
             else if (lookDir > 180) lookDir -= 360;
 
@@ -198,21 +204,24 @@ public class Player : MonoBehaviourPunCallbacks, IPunObservable
 
     void SpawnEnergyNearThis()
     {
-        if (moveVec != Vector3.zero) movedDist += speed * Time.deltaTime;
-        if (movedDist > 10 && energyList.Count < 96)
+        if (moveVec != Vector3.zero)
         {
-            for (int i = 0; i < 5; i++)
+            movedDist += speed * Time.deltaTime;
+            if (movedDist > 10 && energyList.Count < 96)
             {
-                float deg = Random.Range(0.0f, 360.0f);
-                Vector3 pos = new Vector3(
-                    Mathf.Cos(deg),
-                    0,
-                    Mathf.Sin(deg)) * Random.Range(80.0f, 120.0f);
-                pos = new Vector3(pos.x + transform.position.x, 1, pos.z + transform.position.z);
-                pv.RPC("RPCSpawnEnergy", RpcTarget.AllBuffered, pos, energyGenID, 3);
-                GetNextEnergyGenID();
+                for (int i = 0; i < 5; i++)
+                {
+                    float deg = Random.Range(0.0f, 360.0f);
+                    Vector3 pos = new Vector3(
+                        Mathf.Cos(deg),
+                        0,
+                        Mathf.Sin(deg)) * Random.Range(80.0f, 120.0f);
+                    pos = new Vector3(pos.x + transform.position.x, 1, pos.z + transform.position.z);
+                    pv.RPC("RPCSpawnEnergy", RpcTarget.AllBuffered, pos, energyGenID, 3);
+                    GetNextEnergyGenID();
+                }
+                movedDist = 0;
             }
-            movedDist = 0;
         }
     }
 
@@ -242,8 +251,9 @@ public class Player : MonoBehaviourPunCallbacks, IPunObservable
     }
 
     [PunRPC]
-    void RPCTakeEnergyOwnership(string playerName, int targetId, int id)
+    void RPCGiveEnergyOwnership(string playerName, int targetId, int id)
     {
+
     }
 
     public void RemoveEnergy(Energy energy)
