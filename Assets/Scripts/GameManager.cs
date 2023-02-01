@@ -4,6 +4,7 @@ using UnityEngine;
 using Photon.Pun;
 using Photon.Realtime;
 using UnityEngine.UI;
+using Photon.Pun.Demo.Cockpit;
 
 public class GameManager : MonoBehaviour
 {
@@ -18,6 +19,7 @@ public class GameManager : MonoBehaviour
     public Text topScoreText;
 
     Player myPlayer;
+    public List<Player> players;
 
     //아래는 내 플레이어의 스킬 관련 변수들
     [HideInInspector] public float jumpCool;
@@ -51,6 +53,8 @@ public class GameManager : MonoBehaviour
         kickCool = 0;
 
         deadPanel.SetActive(false);
+
+        StartCoroutine(GiveUpFarEnergyOwnership());
     }
 
     //점프버튼 눌렸을/뗐을 때
@@ -92,24 +96,25 @@ public class GameManager : MonoBehaviour
 
     public void LeaveThisGame()
     {
-
+        StopAllCoroutines();
+        players.Clear();
     }
-/*
-    //에너지 오브젝트의 소유권을 조정한다.
-    IEnumerator FixEnergyOwnership()
+
+    IEnumerator GiveUpFarEnergyOwnership()
     {
         while (true)
         {
-            Vector3 myPlayerPos = new Vector3(myPlayer.transform.position.x, 0, myPlayer.transform.position.z);
-            for (int i = myPlayer.energyList.Count - 1; i >= 0; i--)
-            {
-                if (Vector3.Distance(myPlayer.energyList[i].transform.position, myPlayerPos) > 20.0f)
-                {
-                    myPlayer.energyList[i].RemoveThisFromScene();
-                }
-            }
             yield return new WaitForSeconds(10.0f);
+            Vector3 myPlayerPos = new Vector3(myPlayer.transform.position.x, 1, myPlayer.transform.position.z);
+            Vector3 otherPlayerPos;
+            for (int i = players.Count - 1; i >= 0; i--)
+            {
+                if (players[i] == this) continue;
+                otherPlayerPos = new Vector3(players[i].transform.position.x, 1, players[i].transform.position.z);
+                for (int j = myPlayer.energyList.Count - 1; j >= 0; j--)
+                    if (Vector3.Distance(myPlayer.energyList[j].transform.position, myPlayerPos) > Vector3.Distance(myPlayer.energyList[j].transform.position, otherPlayerPos))
+                        myPlayer.GiveEnergyOwnership(players[i], myPlayer.energyList[j].id);
+            }
         }
-    }*/
-
+    }
 }

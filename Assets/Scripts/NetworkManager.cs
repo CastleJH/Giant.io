@@ -37,8 +37,43 @@ public class NetworkManager : MonoBehaviourPunCallbacks
                 isEmptyNameField = false;
                 break;
             }
-        if (isEmptyNameField) PhotonNetwork.LocalPlayer.NickName = "username" + Random.Range(1000, 9999).ToString();
-        else PhotonNetwork.LocalPlayer.NickName = nicknameInput.text;
+        if (isEmptyNameField)
+        {
+            bool exist;
+            string newNickName;
+            do
+            {
+                exist = false;
+                newNickName = "username" + Random.Range(1000, 9999).ToString(); ;
+                for (int i = 0; i < PhotonNetwork.PlayerList.Length; i++)
+                    if (PhotonNetwork.PlayerList[i].NickName == newNickName)
+                    {
+                        exist = true;
+                        break;
+                    }
+            } while (exist);
+            PhotonNetwork.LocalPlayer.NickName = newNickName;
+        }
+        else
+        {
+            bool exist;
+            string newNickName;
+            int numTag = 1;
+            newNickName = nicknameInput.text;
+            do
+            {
+                exist = false;
+                for (int i = 0; i < PhotonNetwork.PlayerList.Length; i++)
+                    if (PhotonNetwork.PlayerList[i].NickName == newNickName)
+                    {
+                        exist = true;
+                        break;
+                    }
+                newNickName = nicknameInput.text + "_" + numTag.ToString();
+                numTag++;
+            } while (exist);
+            PhotonNetwork.LocalPlayer.NickName = newNickName;
+        }
         GameManager.instance.SpawnMyPlayer();
     }
 
@@ -53,5 +88,10 @@ public class NetworkManager : MonoBehaviourPunCallbacks
     public override void OnLeftRoom()
     {
         lobbyPanel.SetActive(true);
+    }
+
+    public override void OnDisconnected(DisconnectCause cause)
+    {
+        ButtonLeaveRoom();
     }
 }

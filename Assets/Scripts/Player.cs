@@ -46,6 +46,20 @@ public class Player : MonoBehaviourPunCallbacks, IPunObservable
         nicknameText.text = pv.Owner.NickName;
 
         InitializePlayer();
+
+        GameManager.instance.players.Add(this);
+    }
+
+    void OnDestroy()
+    {
+        for (int i = GameManager.instance.players.Count - 1; i >= 0; i--)
+        {
+            if (GameManager.instance.players[i] == this)
+            {
+                GameManager.instance.players.RemoveAt(i);
+                break;
+            }
+        }
     }
 
     public void InitializePlayer()
@@ -236,13 +250,15 @@ public class Player : MonoBehaviourPunCallbacks, IPunObservable
 
     void GetNextEnergyGenID()
     {
-        bool sameID = false;
+        bool sameID;
         do
         {
-            energyGenID = (energyGenID + 1) % 10000;
+            sameID = false;
+            energyGenID = (energyGenID + 1) % 10000000;
             for (int i = energyList.Count - 1; i >= 0; i--)
                 if (energyList[i].id == energyGenID)
                 {
+                    Debug.Log("SAME!!!!!!!!!!");
                     sameID = true;
                     break;
                 }
@@ -250,10 +266,37 @@ public class Player : MonoBehaviourPunCallbacks, IPunObservable
         while (sameID);
     }
 
-    [PunRPC]
-    void RPCGiveEnergyOwnership(string playerName, int targetId, int id)
+    public void GiveEnergyOwnership(Player targetPlayer, int targetID)
     {
+        targetPlayer.pv.RPC("RPCFindLocalAndTakeEnergyOwnership", RpcTarget.AllBuffered, photonView.ViewID, targetID);
+    }
 
+    [PunRPC]
+    void RPCFindLocalAndTakeEnergyOwnership(int fromID, int targetID)
+    {
+        if (pv.IsMine)
+        {
+            pv.RPC("RPCTakeEnergyOwnership", RpcTarget.AllBuffered, fromID, targetID, energyGenID);
+            GetNextEnergyGenID();
+        }
+    }
+
+    [PunRPC]
+    void RPCTakeEnergyOwnership(int fromID, int targetID, int genID)
+    {
+        Player targetPlayer = PhotonView.Find(fromID).GetComponent<Player>();
+        for (int i = targetPlayer.energyList.Count - 1; i >= 0; i--)
+        {
+            if (targetPlayer.energyList[i].id == targetID)
+            {
+                Energy targetEnergy = targetPlayer.energyList[i];
+                targetPlayer.energyList.RemoveAt(i);
+                targetEnergy.myOwner = this;
+                targetEnergy.id = genID;
+                energyList.Add(targetEnergy);
+                break;
+            }
+        }
     }
 
     public void RemoveEnergy(Energy energy)
@@ -348,6 +391,8 @@ public class Player : MonoBehaviourPunCallbacks, IPunObservable
         {
             GameManager.instance.killerNameText.text = string.Format("당신은 [{0}]에게 밟혀\n납작해졌습니다!", killerName);
             GameManager.instance.deadPanel.SetActive(true);
+
+            GameManager.instance.StopAllCoroutines();
         }
     }
 
